@@ -2,7 +2,7 @@
 describe Ngrok::Tunnel do
 
   describe "Before start" do
-    
+
     it "should not be running" do
       expect(Ngrok::Tunnel.running?).to be false
     end
@@ -49,10 +49,25 @@ describe Ngrok::Tunnel do
       expect(Ngrok::Tunnel.ngrok_url_https).to be =~ /https:\/\/.*ngrok\.io$/
     end
 
+    it "ngrok_url_tcp should be nil" do
+      expect(Ngrok::Tunnel.ngrok_url_tcp).to eq(nil)
+    end
+
     it "should have pid > 0" do
       expect(Ngrok::Tunnel.pid).to be > 0
     end
+  end
 
+  describe 'load multiple tunnels from config file' do
+    before(:all) do
+      Ngrok::Tunnel.start({ config: '~/.ngrok2/ngrok.yml' })
+    end
+
+    after(:all) { Ngrok::Tunnel.stop }
+
+    it "should have valid ngrok_url_tcp" do
+      expect(Ngrok::Tunnel.ngrok_url_tcp).to be =~ /tcp:\/\/.*tcp\.*ngrok\.io:\d{5}$/
+    end
   end
 
   describe "Custom log file" do
@@ -66,10 +81,6 @@ describe Ngrok::Tunnel do
   end
 
   describe "Custom subdomain" do
-    it "should fail without authtoken" do
-      expect {Ngrok::Tunnel.start(subdomain: 'test-subdomain')}.to raise_error
-    end
-
     it "should fail with incorrect authtoken" do
       expect {Ngrok::Tunnel.start(subdomain: 'test-subdomain', authtoken: 'incorrect_token')}.to raise_error
     end

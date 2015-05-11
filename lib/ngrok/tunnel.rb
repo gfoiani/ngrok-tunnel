@@ -10,7 +10,7 @@ module Ngrok
   class Tunnel
 
     class << self
-      attr_reader :pid, :ngrok_url, :ngrok_url_https, :status
+      attr_reader :pid, :ngrok_url, :ngrok_url_https, :ngrok_url_tcp, :status
 
       def init(params = {})
         @params = {port: 3001, timeout: 10, config: '/dev/null'}.merge(params)
@@ -23,7 +23,12 @@ module Ngrok
 
         if stopped?
           @params[:log] = (@params[:log]) ? File.open(@params[:log], 'w+') : Tempfile.new('ngrok')
-          @pid = spawn("exec ngrok http " + ngrok_exec_params)
+          if(@params[:config] == '/dev/null')
+            command = "exec ngrok http #{@params[:port]} " + ngrok_exec_params
+          else
+            command = "exec ngrok start --all " + ngrok_exec_params
+          end
+          @pid = spawn(command)
           at_exit { Ngrok::Tunnel.stop }
           @status = :running
           fetch_urls
@@ -72,20 +77,22 @@ module Ngrok
       private
 
       def ngrok_exec_params
-        exec_params = "-log=stdout -log-level=debug "
-        exec_params << "-authtoken=#{@params[:authtoken]} " if @params[:authtoken]
-        exec_params << "-subdomain=#{@params[:subdomain]} " if @params[:subdomain]
-        exec_params << "-config=#{@params[:config]} #{@params[:port].to_i} > #{@params[:log].path}"
+        exec_params = "-log stdout -log-level debug "
+        exec_params << "-authtoken #{@params[:authtoken]} " if @params[:authtoken]
+        exec_params << "-subdomain #{@params[:subdomain]} " if @params[:subdomain]
+        exec_params << "-config #{@params[:config]} "
+        exec_params << "> #{@params[:log].path}"
       end
 
       def fetch_urls
         @params[:timeout].times do
           log_content = @params[:log].read
-          result = log_content.scan(/URL:(.+)\sProto:(http|https)\s/)
+          result = log_content.scan(/URL:(.+)\sProto:(http|https|tcp)\s/)
           if !result.empty?
             result = Hash[*result.flatten].invert
             @ngrok_url = result['http']
             @ngrok_url_https = result['https']
+            @ngrok_url_tcp = result['tcp'] if result['tcp']
             return @ngrok_url if @ngrok_url
           end
 
